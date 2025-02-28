@@ -25,10 +25,24 @@ v_iu_cgs = v_IU(1) #1 cm/s is 3.357e-7 IU
 
 #Simulation properties
 
-N = 2000 #Number of particles
-M = 10 #Total mass in solar masses
-a = 1 #Total radius in AU
+N = 200 #Number of particles
+M = 100 #Total mass in solar masses
+a = 12 #Total radius in AU
 m_i = M / N #Particle mass in solar masses
+
+#%%
+
+#Compute the dynamical time and the collapse time in years
+
+density_0 = m_i * N * M_sun / (4/3 * np.pi * (a * AU)**3)
+
+t_dyn = np.sqrt(3 * np.pi / (16 * G_p * density_0)) / year
+
+t_coll = t_dyn / np.sqrt(2)
+
+print("Dynamical time: t_dyn =" + f"{t_dyn: .3f}" + " yr =" + f"{t_dyn * t_iu_yr: .3f}" + " IU")
+print("Collapse time: t_coll =" + f"{t_coll: .3f}" + " yr =" + f"{t_coll * t_iu_yr: .3f}" + " IU")
+print("Initial density = " + f"{density_0: .3e}" + " g cm^-3")
 
 #%%
 
@@ -51,6 +65,11 @@ def GenInput(N, m_i, a):
     y_0 = r * np.sin(phi) * np.sin(theta)
     z_0 = r * np.cos(theta) 
     
+    #Initial velocities
+    vx_0 = np.zeros(N)
+    vy_0 = np.zeros(N)
+    vz_0 = np.zeros(N)
+    
     #Write to file
     file_path = "Input/THS_N" + str(N) + "_M" + str(M) + "_a" + str(a) + ".in"
     
@@ -59,9 +78,8 @@ def GenInput(N, m_i, a):
         
         for i in tqdm(range(N)):
             i_file.write(str(m_i) + " " + 
-                         str(x_0) + " " + 
-                         str(y_0) + " " + 
-                         str(z_0) + "\n")
+                         str(x_0[i]) + " " + str(y_0[i]) + " " + str(z_0[i]) + " " +
+                         str(vx_0[i]) + " " + str(vy_0[i]) + " " + str(vz_0[i]) + "\n")
         
     return x_0, y_0, z_0
     

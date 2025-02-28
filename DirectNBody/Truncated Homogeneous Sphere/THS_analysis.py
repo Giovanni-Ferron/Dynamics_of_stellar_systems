@@ -27,7 +27,7 @@ v_iu_cgs = v_IU(1) #1 cm/s is 3.357e-7 IU
 
 #Simulation properties
 
-N = 60 #Number of particles
+N = 10 #Number of particles
 M = 10 #Total mass in solar masses
 a = 1 #Total radius in AU
 m_i = M / N #Particle mass in solar masses
@@ -74,7 +74,7 @@ def GetData(filename, N):
 
 #Get the simulation time and the positions and velocities of the particles
 
-sim_file = "../DirectNBody/output_sphere_" + str(N) + ".out"
+sim_file = "Output/THS_N" + str(N) + "_M" + str(M) + "_a" + str(a) + ".out"
 
 time, m_i, pos_ext, vel_ext, pos_CM, vel_CM, CM_p, CM_v = GetData(sim_file, N)
 
@@ -85,26 +85,26 @@ time_yr = time / t_iu_yr
 x_ext, y_ext, z_ext = pos_ext[:, :, 0], pos_ext[:, :, 1], pos_ext[:, :, 2]
 vx_ext, vy_ext, vz_ext = vel_ext[:, :, 0], vel_ext[:, :, 1], vel_ext[:, :, 2]
 
-R = np.sqrt(x_ext**2 + y_ext**2 + z_ext**2)
-V = np.sqrt(vx_ext**2 + vy_ext**2 + vz_ext**2)
-
+R = np.sqrt(np.sum(pos_ext**2, axis=2))
+V = np.sqrt(np.sum(vel_ext**2, axis=2))
+            
 #Positions and velocities of the particles in the CM frame
 x_CM, y_CM, z_CM = pos_CM[:, :, 0], pos_CM[:, :, 1], pos_CM[:, :, 2]
 vx_CM, vy_CM, vz_CM = vel_CM[:, :, 0], vel_CM[:, :, 1], vel_CM[:, :, 2]
 
-R_CM = np.sqrt(x_CM**2 + y_CM**2 + z_CM**2)
-V_CM = np.sqrt(vx_CM**2 + vy_CM**2 + vz_CM**2)
+R_CM = np.sqrt(np.sum(pos_CM**2, axis=2))
+V_CM = np.sqrt(np.sum(vel_CM**2, axis=2))
 
 #Position and velocity of CM in the external frame
 CM_x, CM_y, CM_z = CM_p[:, 0], CM_p[:, 1], CM_p[:, 2]
 CM_vx, CM_vy, CM_vz = CM_v[:, 0], CM_v[:, 1], CM_v[:, 2]
 
-CM_R = np.sqrt(CM_x**2 + CM_y**2 + CM_z**2)
-CM_V = np.sqrt(CM_vx**2 + CM_vy**2 + CM_vz**2)
+CM_R = np.sqrt(np.sum(CM_p**2, axis=1))
+CM_V = np.sqrt(np.sum(CM_v**2, axis=1))
 
 #%%
 
-#Compute the dynamical time and the collapse time in years
+#Compute the theoretical dynamical time and the collapse time in years
 
 density_0 = m_i * N * M_sun / (4/3 * np.pi * (a * AU)**3)
 
@@ -112,22 +112,36 @@ t_dyn = np.sqrt(3 * np.pi / (16 * G_p * density_0)) / year
 
 t_coll = t_dyn / np.sqrt(2)
 
-print("Dynamical time: t_dyn =" + f"{t_dyn: .3f}" + " yr")
-print("Collapse time: t_coll =" + f"{t_coll: .3f}" + " yr")
-print("Collapse time (IU) = " + str(t_coll * t_iu_yr))
+print("Dynamical time: t_dyn =" + f"{t_dyn: .3f}" + " yr =" + f"{t_dyn * t_iu_yr: .3f}" + " IU")
+print("Collapse time: t_coll =" + f"{t_coll: .3f}" + " yr =" + f"{t_coll * t_iu_yr: .3f}" + " IU")
 print("Initial density = " + f"{density_0: .3e}" + " g cm^-3")
 
 #%%
 
-#Compute the total potential and kinetic energy of the system
+#Compute the collapse time from the simulation data
 
-K_tot = 0.5 * (m_i * M_sun) * np.sum((V / v_iu_cgs)**2, axis=1)
+#Index of the particle with the farthest position from the CM at initial time
+initial_R_idx = np.where(R_CM[0, :] == np.max(R_CM[0, :]))[0][0]
+
+#Index of the minimum value in time of the radius of the farthest particle
+min_R_idx = np.where(R_CM[:, initial_R_idx] == np.min(R_CM[:, initial_R_idx]))[0][0]
+
+#Collapse time from the simulation
+t_coll_sim = time[min_R_idx]
+
+print("Collapse time from simulation =" + f"{t_coll_sim / t_iu_yr: .3f}" + " yr")
+
+#%%
+
+#Compute the total potential and kinetic energy of the system in the CM frame
+
+K_tot = 0.5 * (m_i * M_sun) * np.sum((V_CM / v_iu_cgs)**2, axis=1)
 U_tot = np.zeros(len(time))
 
 for i in range(N):
     for j in range(N):
         if j > i:
-            U_tot += -G_p * (m_i * M_sun)**2 * np.sqrt(np.sum(AU**2 * (pos_ext[:, i, :] - pos_ext[:, j, :])**2, axis=1))**-1
+            U_tot += -G_p * (m_i * M_sun)**2 * np.sqrt(np.sum(AU**2 * (pos_CM[:, i, :] - pos_CM[:, j, :])**2, axis=1))**-1
             
 E_tot = K_tot + U_tot
 
@@ -146,7 +160,7 @@ def update_collapse(frame):
     ax.clear()
     
     ax.set_autoscale_on(False)
-    ax.scatter(x_ext[frame], y_ext[frame], z_ext[frame], color="darkcyan")
+    ax.scatter(x_CM[frame], y_CM[frame], z_CM[frame], color="darkcyan")
     ax.scatter(CM_x[frame], CM_y[frame], CM_z[frame], color="crimson")
     ax.set_xticks(ticks)
     ax.set_yticks(ticks)
@@ -171,13 +185,13 @@ ax_ph = fig_ph.add_subplot()
 ax_ph.set_aspect("equal")
 
 ticks_x_ph = np.linspace(-2, 20., 10)
-ticks_y_ph = np.linspace(-2, 25., 5)
+ticks_y_ph = np.linspace(-2, 1.2 * int(np.max(V_CM)), 5)
 bbox_ph = dict(boxstyle='round', fc='white', ec='black', alpha=0.8)
 
 def update_ph(frame):
     ax_ph.clear()
     
-    ax_ph.scatter(R[frame], V[frame], color="darkcyan", alpha=0.5)
+    ax_ph.scatter(R_CM[frame], V_CM[frame], color="darkcyan", alpha=0.5)
     ax_ph.scatter(CM_R[frame], CM_V[frame], color="crimson")
     ax_ph.set_xticks(ticks_x_ph)
     ax_ph.set_yticks(ticks_y_ph)
