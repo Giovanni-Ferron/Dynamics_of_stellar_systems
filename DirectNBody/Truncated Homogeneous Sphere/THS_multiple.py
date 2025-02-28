@@ -23,12 +23,10 @@ def t_IU(t_p, M_p=M_sun, r_p=AU):
 t_iu_yr = t_IU(year) #1 yr is 6.251839 IU
 v_iu_cgs = v_IU(1) #1 cm/s is 3.357e-7 IU
 
-#%%
-
-#Simulation properties
+#%%----Simulation properties----
 
 #Number of particles
-N = np.array([10, 20, 50, 100, 200, 500])
+N = np.array([10, 20, 50, 100, 200, 500, 800])
 
 #Total mass in solar masses
 M = np.array([10, 50, 100, 150, 200])
@@ -36,7 +34,12 @@ M = np.array([10, 50, 100, 150, 200])
 #Total radius in AU
 a = np.array([1, 5, 8 ,12])
 
-#%%
+#Fixed parameters
+N_fixed = 200
+M_fixed = [10, 100]    #Fixed mass for variable N and a respectively
+a_fixed = 1
+
+#%%----GetData and ComputeCollTime functions----
 
 #Function that reads the simulation data from the output file
 
@@ -97,7 +100,7 @@ def ComputeCollTime(N, M, a, t, R):
     
     return t_coll_sim, t_coll
 
-#%%
+#%%----Compute simulation dynamical times----
 
 #Compute and plot the collapse time for different N and fixed M and a
 
@@ -105,34 +108,72 @@ t_coll_sim = np.zeros(len(N))
 t_coll_th = np.zeros(len(N))
 
 for i, p_num in enumerate(N):
-    filename = "Output/THS_N" + str(p_num) + "_M10_a1.out"
+    filename = "Output/THS_N" + str(p_num) + "_M" + str(M_fixed[0]) + "_a" + str(a_fixed) + ".out"
     time, m, pos_ext, vel_ext, pos_CM, vel_CM, CM_p, CM_v = GetData(filename, p_num)
     R_CM = np.sqrt(np.sum(pos_CM**2, axis=2))
     
-    t_coll_sim[i], t_coll_th[i] = ComputeCollTime(p_num, 10, 1, time, R_CM)  
+    t_coll_sim[i], t_coll_th[i] = ComputeCollTime(p_num, M_fixed[0], a_fixed, time, R_CM)  
     
     
-fig = plt.figure()
-ax = fig.add_subplot()
+fig_num = plt.figure()
+ax = fig_num.add_subplot()
 ax.plot(np.arange(0, len(N)), t_coll_sim, color="darkcyan", marker="o", label="Simulation $t_{coll}$")    
 ax.plot(np.arange(0, len(N)), t_coll_th, color="crimson", marker="o", label="Theoretical $t_{coll}$")
+ax.set_title("THS collapse (M = " + str(M_fixed[0]) + "$\ M_\odot$, a = " + str(a_fixed) + "$\ AU$)")
 ax.set_xlabel("$N$")
-ax.set_ylabel("$t_{coll}$")
+ax.set_ylabel("$t_{coll}\ [yr]$")
 ax.set_xticks(np.arange(0, len(N)))
 ax.set_xticklabels(N)
 ax.legend()
 
-# CM_V = np.sqrt(CM_vx**2 + CM_vy**2 + CM_vz**2)
-#%%
+#%%%
 
-# #Compute the total potential and kinetic energy of the system in the CM frame
+#Compute and plot the collapse time for different M and fixed N and a
 
-# K_tot = 0.5 * (m_i * M_sun) * np.sum((V_CM / v_iu_cgs)**2, axis=1)
-# U_tot = np.zeros(len(time))
+t_coll_sim = np.zeros(len(M))
+t_coll_th = np.zeros(len(M))
 
-# for i in range(N):
-#     for j in range(N):
-#         if j > i:
-#             U_tot += -G_p * (m_i * M_sun)**2 * np.sqrt(np.sum(AU**2 * (pos_CM[:, i, :] - pos_CM[:, j, :])**2, axis=1))**-1
-            
-# E_tot = K_tot + U
+for i, mass in enumerate(M):
+    filename = "Output/THS_N" + str(N_fixed) + "_M" + str(mass) + "_a" + str(a_fixed) + ".out"
+    time, m, pos_ext, vel_ext, pos_CM, vel_CM, CM_p, CM_v = GetData(filename, N_fixed)
+    R_CM = np.sqrt(np.sum(pos_CM**2, axis=2))
+    
+    t_coll_sim[i], t_coll_th[i] = ComputeCollTime(N_fixed, mass, a_fixed, time, R_CM)  
+    
+    
+fig_mass = plt.figure()
+ax = fig_mass.add_subplot()
+ax.plot(np.arange(0, len(M)), t_coll_sim, color="darkcyan", marker="o", label="Simulation $t_{coll}$")    
+ax.plot(np.arange(0, len(M)), t_coll_th, color="crimson", marker="o", label="Theoretical $t_{coll}$")
+ax.set_title("THS collapse (N = " + str(N_fixed) + ", a = " + str(a_fixed) + "$\ AU$)")
+ax.set_xlabel("$M\ [M_\odot]$")
+ax.set_ylabel("$t_{coll}\ [yr]$")
+ax.set_xticks(np.arange(0, len(M)))
+ax.set_xticklabels(M)
+ax.legend()
+
+#%%%
+
+#Compute and plot the collapse time for different a and fixed N and M
+
+t_coll_sim = np.zeros(len(a))
+t_coll_th = np.zeros(len(a))
+
+for i, radius in enumerate(a):
+    filename = "Output/THS_N" + str(N_fixed) + "_M" + str(M_fixed[1]) + "_a" + str(radius) + ".out"
+    time, m, pos_ext, vel_ext, pos_CM, vel_CM, CM_p, CM_v = GetData(filename, N_fixed)
+    R_CM = np.sqrt(np.sum(pos_CM**2, axis=2))
+    
+    t_coll_sim[i], t_coll_th[i] = ComputeCollTime(N_fixed, M_fixed[1], radius, time, R_CM)  
+    
+    
+fig_radius = plt.figure()
+ax = fig_radius.add_subplot()
+ax.plot(np.arange(0, len(a)), t_coll_sim, color="darkcyan", marker="o", label="Simulation $t_{coll}$")    
+ax.plot(np.arange(0, len(a)), t_coll_th, color="crimson", marker="o", label="Theoretical $t_{coll}$")
+ax.set_title("THS collapse (N = " + str(N_fixed) + ", M = " + str(M_fixed[1]) + "$\ M_\odot$)")
+ax.set_xlabel("$a\ [AU]$")
+ax.set_ylabel("$t_{coll}\ [yr]$")
+ax.set_xticks(np.arange(0, len(a)))
+ax.set_xticklabels(a)
+ax.legend()

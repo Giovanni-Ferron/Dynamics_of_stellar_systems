@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
-import matplotlib.ticker as ticker
 from pandas import read_csv
 
 #Conversion in IU
@@ -23,16 +22,14 @@ def t_IU(t_p, M_p=M_sun, r_p=AU):
 t_iu_yr = t_IU(year) #1 yr is 6.251839 IU
 v_iu_cgs = v_IU(1) #1 cm/s is 3.357e-7 IU
 
-#%%
+#%%----Simulation properties----
 
-#Simulation properties
-
-N = 10 #Number of particles
+N = 800 #Number of particles
 M = 10 #Total mass in solar masses
 a = 1 #Total radius in AU
 m_i = M / N #Particle mass in solar masses
 
-#%%
+#%%----GetData function----
 
 #Function that reads the simulation data from the output file
 
@@ -70,7 +67,7 @@ def GetData(filename, N):
     
     return time, m, pos_ext, vel_ext, pos_CM, vel_CM, CM_p, CM_v
 
-#%%
+#%%----Read output file----
 
 #Get the simulation time and the positions and velocities of the particles
 
@@ -102,36 +99,7 @@ CM_vx, CM_vy, CM_vz = CM_v[:, 0], CM_v[:, 1], CM_v[:, 2]
 CM_R = np.sqrt(np.sum(CM_p**2, axis=1))
 CM_V = np.sqrt(np.sum(CM_v**2, axis=1))
 
-#%%
-
-#Compute the theoretical dynamical time and the collapse time in years
-
-density_0 = m_i * N * M_sun / (4/3 * np.pi * (a * AU)**3)
-
-t_dyn = np.sqrt(3 * np.pi / (16 * G_p * density_0)) / year
-
-t_coll = t_dyn / np.sqrt(2)
-
-print("Dynamical time: t_dyn =" + f"{t_dyn: .3f}" + " yr =" + f"{t_dyn * t_iu_yr: .3f}" + " IU")
-print("Collapse time: t_coll =" + f"{t_coll: .3f}" + " yr =" + f"{t_coll * t_iu_yr: .3f}" + " IU")
-print("Initial density = " + f"{density_0: .3e}" + " g cm^-3")
-
-#%%
-
-#Compute the collapse time from the simulation data
-
-#Index of the particle with the farthest position from the CM at initial time
-initial_R_idx = np.where(R_CM[0, :] == np.max(R_CM[0, :]))[0][0]
-
-#Index of the minimum value in time of the radius of the farthest particle
-min_R_idx = np.where(R_CM[:, initial_R_idx] == np.min(R_CM[:, initial_R_idx]))[0][0]
-
-#Collapse time from the simulation
-t_coll_sim = time[min_R_idx]
-
-print("Collapse time from simulation =" + f"{t_coll_sim / t_iu_yr: .3f}" + " yr")
-
-#%%
+#%%----Compute total energy----
 
 #Compute the total potential and kinetic energy of the system in the CM frame
 
@@ -145,9 +113,41 @@ for i in range(N):
             
 E_tot = K_tot + U_tot
 
-#%%
+#%%----Compute theoretical timescales----
 
-#Collapse animation
+#Compute the theoretical dynamical time and the collapse time in years
+
+density_0 = m_i * N * M_sun / (4/3 * np.pi * (a * AU)**3)
+
+t_dyn = np.sqrt(3 * np.pi / (16 * G_p * density_0)) / year
+
+t_coll = t_dyn / np.sqrt(2)
+
+print("Dynamical time: t_dyn =" + f"{t_dyn: .3f}" + " yr =" + f"{t_dyn * t_iu_yr: .3f}" + " IU")
+print("Collapse time: t_coll =" + f"{t_coll: .3f}" + " yr =" + f"{t_coll * t_iu_yr: .3f}" + " IU")
+print("Initial density = " + f"{density_0: .3e}" + " g cm^-3")
+
+#%%----Compute simulation timescales----
+#%%%Compute the collapse time from the simulation data
+
+#Index of the particle with the farthest position from the CM at initial time
+initial_R_idx = np.where(R_CM[0, :] == np.max(R_CM[0, :]))[0][0]
+
+#Index of the minimum value in time of the radius of the farthest particle
+min_R_idx = np.where(R_CM[:, initial_R_idx] == np.min(R_CM[:, initial_R_idx]))[0][0]
+
+#Collapse time from the simulation
+t_coll_sim = time[min_R_idx]
+
+print("Collapse time from simulation =" + f"{t_coll_sim / t_iu_yr: .3f}" + " yr")
+
+#%%%Compute the collapse time from the point of minimum potential energy
+
+t_coll_en = time[U_tot == np.min(U_tot)][0]
+
+print("Collapse time from minimum U_tot =" + f"{t_coll_en / t_iu_yr: .3f}" + " yr")
+
+#%%----Collapse animation----
 
 fig = plt.figure(figsize=(10, 10))
 ax = fig.add_subplot(projection="3d")
@@ -176,29 +176,45 @@ animation = anim.FuncAnimation(fig=fig,
                                frames=end, 
                                interval=20, repeat=True)
 
-#%%
+#%%----Phase space and position histogram----
 
-#Phase space visualization
+#Phase space visualization and particle position histogram
 
-fig_ph = plt.figure()
-ax_ph = fig_ph.add_subplot()
-ax_ph.set_aspect("equal")
+fig_ph = plt.figure(figsize=(15, 5))
 
-ticks_x_ph = np.linspace(-2, 20., 10)
-ticks_y_ph = np.linspace(-2, 1.2 * int(np.max(V_CM)), 5)
+#Phase space plot
+
+ax_ph = fig_ph.add_subplot(121)    
+
+ticks_x_ph = np.linspace(-1, 5, 10)
+ticks_y_ph = np.linspace(-1, 1.2 * int(np.max(V_CM)), 5)
 bbox_ph = dict(boxstyle='round', fc='white', ec='black', alpha=0.8)
+
+#Position histogram plot
+
+ax_hist = fig_ph.add_subplot(122)
+
+ticks_x_hist = np.linspace(-1, 0.8 * int(np.max(R_CM)), 10)
+ticks_y_hist = np.linspace(0, N/1.5, 5)
 
 def update_ph(frame):
     ax_ph.clear()
     
-    ax_ph.scatter(R_CM[frame], V_CM[frame], color="darkcyan", alpha=0.5)
+    ax_ph.scatter(R_CM[frame, :], V_CM[frame, :], color="darkcyan", alpha=0.5)
     ax_ph.scatter(CM_R[frame], CM_V[frame], color="crimson")
     ax_ph.set_xticks(ticks_x_ph)
     ax_ph.set_yticks(ticks_y_ph)
-    ax_ph.xaxis.set_major_locator(ticker.MultipleLocator(12))
     ax_ph.set_xlabel("R [AU]", size=10)
-    ax_ph.set_ylabel("V [IU]", size=10)
+    ax_ph.set_ylabel("V [IU]", size=10)   
     ax_ph.text(0.7, 0.03, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_ph, color="black", size=10, transform=ax_ph.transAxes)
+    
+    ax_hist.clear()
+    
+    ax_hist.hist(R_CM[frame, :], color="darkcyan")
+    ax_hist.set_xticks(ticks_x_hist)
+    ax_hist.set_yticks(ticks_y_hist)
+    ax_hist.set_xlabel("R [AU]", size=10)
+    
     
 end_ph = np.where(time == max(time))[0][0]
 animation_ph = anim.FuncAnimation(fig=fig_ph, 
@@ -206,9 +222,7 @@ animation_ph = anim.FuncAnimation(fig=fig_ph,
                                frames=end_ph, 
                                interval=60, repeat=True)
 
-#%%
-
-#Total energy plot
+#%%----Total energy plot----
 
 plt.figure()
 plt.plot(time_yr, K_tot, color="crimson", label="Total kinetic energy")
