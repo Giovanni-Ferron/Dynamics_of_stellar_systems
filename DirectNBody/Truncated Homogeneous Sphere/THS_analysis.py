@@ -2,6 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 from pandas import read_csv
+import time as tm
+
+#To view the animations type %matplotlib qt6 in the console
 
 #Conversion in IU
 
@@ -37,8 +40,7 @@ def GetData(filename, N):
     #Get data in a pandas dataframe
     data = read_csv(filename, 
                     names=["m", "x", "y", "z", "vx", "vy", "vz"], 
-                    sep=" ", 
-                    )
+                    sep=" ")
     
     #Get the simulation time (first column of the corresponding rows)
     time = np.array(data[1::N+2])[:, 0]
@@ -99,7 +101,7 @@ CM_vx, CM_vy, CM_vz = CM_v[:, 0], CM_v[:, 1], CM_v[:, 2]
 CM_R = np.sqrt(np.sum(CM_p**2, axis=1))
 CM_V = np.sqrt(np.sum(CM_v**2, axis=1))
 
-#%%----Compute total energy----
+#%%----Compute total energy in the CM frame----
 
 #Compute the total potential and kinetic energy of the system in the CM frame
 
@@ -112,6 +114,32 @@ for i in range(N):
             U_tot += -G_p * (m_i * M_sun)**2 * np.sqrt(np.sum(AU**2 * (pos_CM[:, i, :] - pos_CM[:, j, :])**2, axis=1))**-1
             
 E_tot = K_tot + U_tot
+
+plt.figure()
+plt.plot(time_yr, K_tot, color="crimson", label="Total kinetic energy")
+plt.plot(time_yr, U_tot, color="darkcyan", label="Total potential energy")
+plt.plot(time_yr, E_tot, color="green", label="Total energy")
+plt.xlabel("$t\ [yr]$")
+plt.ylabel("$E\ [erg]$")
+plt.legend()
+
+#%%----Compute total linear and angular momentum in the external frame----
+
+p_tot = m_i * M_sun * np.sqrt(np.sum(vx_ext, axis=1)**2 + 
+                              np.sum(vy_ext, axis=1)**2 + 
+                              np.sum(vz_ext, axis=1)**2) / v_iu_cgs
+L_tot = m_i * M_sun * AU * v_iu_cgs**-1 * np.sqrt(np.sum(y_ext * vy_ext - z_ext * vz_ext, axis=1)**2 + 
+                                  np.sum(z_ext * vz_ext - x_ext * vx_ext, axis=1)**2 + 
+                                  np.sum(x_ext * vx_ext - y_ext * vy_ext, axis=1)**2)
+
+fig_p, ax_p = plt.subplots(1, 2, figsize=(10, 5))
+ax_p[0].plot(time_yr, p_tot, color="darkcyan")
+ax_p[0].set_xlabel("$t\ [yr]$")
+ax_p[0].set_ylabel("$p\ [g\cdot cm\cdot s^{-1}]$")
+
+ax_p[1].plot(time_yr, L_tot, color="darkcyan")
+ax_p[1].set_xlabel("$t\ [yr]$")
+ax_p[1].set_ylabel("$L\ [g\cdot cm^{2}\cdot s^{-1}]$")
 
 #%%----Compute theoretical timescales----
 
@@ -222,13 +250,61 @@ animation_ph = anim.FuncAnimation(fig=fig_ph,
                                frames=end_ph, 
                                interval=60, repeat=True)
 
-#%%----Total energy plot----
+#%%----Plot the distribution density over time----
 
-plt.figure()
-plt.plot(time_yr, K_tot, color="crimson", label="Total kinetic energy")
-plt.plot(time_yr, U_tot, color="darkcyan", label="Total potential energy")
-plt.plot(time_yr, E_tot, color="green", label="Total energy")
-plt.xlabel("$t\ [yr]$")
-plt.ylabel("$E\ [erg]$")
-plt.legend()
+#Divide the sphere in volume elements, all with the same total volume
+r_grid_len = 500
+volume = 4/3 * np.pi * a**3 / r_grid_len
 
+#Compute the radii of each volume element to form a grid of radii, adding a last
+r_grid = np.zeros(r_grid_len)
+
+for i in range(r_grid_len - 1):
+    r_grid[i + 1] = (3/4 / np.pi * volume + r_grid[i]**3)**(1/3)
+    
+if r_grid[-1] < a:
+    r_grid = np.append(r_grid, a)
+
+#Compute the number of particles inside a given radius interval    
+p_num = np.zeros((len(time), len(r_grid) - 1))
+
+for i in range(0, len(time)):
+    #Count the number of particles inside every radius interval at a given time
+    p_idx, p_inside = np.unique(np.digitize(R_CM[i, :], r_grid), return_counts=True)
+    
+    #Count only the particles within a, and add the number to the p_num
+    #elements at the index of the corresponding occupied interval, leaving
+    #the unoccupied ones at zero particles    
+    cond_within = np.where(p_idx < len(r_grid) - 1)
+    p_num[i, p_idx[cond_within]] += p_inside[cond_within]
+
+#Compute the density in each radius interval and the Poisson error
+rho = (p_num / volume) * m_i * M_sun * AU**-3
+rho_err = (np.sqrt(p_num) / volume) * m_i * M_sun * AU**-3
+
+#%%%Density profile animation
+
+#Plot the density at each radius corresponding to the middle of a bin
+bar_pos = np.diff(r_grid) / 2 + r_grid[:-1]
+
+fig_rho, ax_rho = plt.subplots()
+bbox_rho = dict(boxstyle='round', fc='white', ec='black', alpha=0.4)
+
+def update_rho(frame):
+    ax_rho.clear()
+    
+    ax_rho.plot(bar_pos, rho[frame, :], color="darkcyan", label="Density profile")
+    ax_rho.axhline(density_0, color="crimson", label="Analytical density profile $\\rho_0$")
+    ax_rho.fill_between(bar_pos, 
+                      rho[frame, :] - rho_err[frame, :], 
+                      rho[frame, :] + rho_err[frame, :], alpha=0.3, color="darkcyan", label="$1\sigma$ Poisson error")
+    plt.xlabel("$R\ [AU]$")
+    plt.ylabel("$\\rho\ [g\ cm^{-3}]$")
+    plt.legend(loc="upper right")
+    ax_rho.text(0.81, 0.72, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_rho, color="black", size=10, transform=ax_rho.transAxes)
+    
+end_rho = np.where(time == max(time))[0][0]
+animation_rho = anim.FuncAnimation(fig=fig_rho, 
+                               func=update_rho, 
+                               frames=end_rho, 
+                               interval=120, repeat=True)

@@ -88,23 +88,82 @@ x_0, y_0, z_0, r, phi, theta = GenInput(N, m_i, a, False)
 
 #%%----Visualize the generated distribution----
 
-# fig = plt.figure(figsize=(10, 10))
-# ax = fig.add_subplot(projection="3d")
-# ax.set_aspect("equal")
-# ax.scatter(x_0, y_0, z_0, alpha=0.8, color="darkcyan")
+fig = plt.figure(figsize=(10, 10))
+ax = fig.add_subplot(projection="3d")
+ax.set_aspect("equal")
+ax.scatter(x_0, y_0, z_0, alpha=0.8, color="darkcyan")
 
-#%%----Density of the sphere at various radii----
+#%%----Plot the spherical coordinates distributions----
+
+fig_sp, ax_sp = plt.subplots(1, 3, figsize=(10, 5))
+
+ax_sp[0].hist(r, bins="fd", color="darkcyan")
+ax_sp[0].set_xlabel("$r\ [AU]$")
+
+ax_sp[1].hist(phi, bins="fd", color="darkcyan")
+ax_sp[1].set_xlabel("$\phi\ [rad]$")
+
+ax_sp[2].hist(theta, bins="fd", color="darkcyan")
+ax_sp[2].set_xlabel("$\theta\ [rad]$")
+
+#%%----Compute the density distribution----
+
+#Divide the sphere in volume elements, all with the same total volume
+r_grid_len = 500
+volume = 4/3 * np.pi * a**3 / r_grid_len
+
+#Compute the radii of each volume element to form a grid of radii, adding a last
+r_grid = np.zeros(r_grid_len)
+
+for i in range(r_grid_len - 1):
+    r_grid[i + 1] = (3/4 / np.pi * volume + r_grid[i]**3)**(1/3)
+  
+if r_grid[-1] < a:
+    r_grid = np.append(r_grid, a)
+    
+#Assign each particle radius to a radius interval
+bins_idx = np.digitize(r, r_grid)
+
+#Compute the density in each radius interval and the Poisson error
+p_num = np.zeros(len(r_grid) - 1)
+p_idx = np.array(np.unique(bins_idx, return_counts=True))
+
+for i, idx in enumerate(p_idx[0] - 1):
+    p_num[idx] += p_idx[1, i]
+
+rho = (p_num / volume) * m_i * M_sun * AU**-3
+rho_err = (np.sqrt(p_num) / volume) * m_i * M_sun * AU**-3
+
+#Plot the density at each radius corresponding to the middle of a bin
+bar_pos = np.diff(r_grid) / 2 + r_grid[:-1]
+
+fig_rho, ax_rho = plt.subplots()
+ax_rho.plot(bar_pos, rho, color="darkcyan", label="Density profile")
+ax_rho.axhline(density_0, color="crimson", label="Analytical density profile $\\rho_0$")
+ax_rho.fill_between(bar_pos, 
+                  rho - rho_err, 
+                  rho + rho_err, alpha=0.3, color="darkcyan", label="$1\sigma$ Poisson error")
+plt.xlabel("$R\ [AU]$")
+plt.ylabel("$\\rho\ [g\ cm^{-3}]$")
+plt.legend()
+
+#%%----Mean density of the sphere at various radii----
 
 #Particle radii
 R = np.sqrt(x_0**2 + y_0**2 + z_0**2)
 
-#Sphere number density and matter density
+#Sphere number density and matter density inside a shell at radius R_i
 n_density = np.array([np.sum(R <= R_i) / (4/3 * np.pi * R_i**3) for R_i in np.unique(np.sort(R))])
-rho = m_i * M_sun * n_density * AU**-3
+n_density_err = np.array([np.sqrt(np.sum(R <= R_i)) / (4/3 * np.pi * R_i**3) for R_i in np.unique(np.sort(R))])
+rho_mean = m_i * M_sun * n_density * AU**-3
+rho_mean_err = m_i * M_sun * n_density_err * AU**-3
 
 fig_n, ax_n = plt.subplots()
-ax_n.plot(np.unique(np.sort(R)), rho, color="darkcyan", label="Density at a given radius")
+ax_n.plot(np.unique(np.sort(R)), rho_mean, color="darkcyan", label="Density within a given radius")
 ax_n.axhline(density_0, color="crimson", label="Mean density $\\rho_0$")
+ax_n.fill_between(np.unique(np.sort(R)), 
+                  rho_mean - rho_mean_err, 
+                  rho_mean + rho_mean_err, alpha=0.3, color="darkcyan", label="$1\sigma$ Poisson error")
 plt.xlabel("$R\ [AU]$")
 plt.ylabel("$\\rho\ [g\ cm^{-3}]$")
 plt.legend()

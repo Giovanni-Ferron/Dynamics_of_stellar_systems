@@ -47,8 +47,7 @@ def GetData(filename, N):
     #Get data in a pandas dataframe
     data = read_csv(filename, 
                     names=["m", "x", "y", "z", "vx", "vy", "vz"], 
-                    sep=" ", 
-                    )
+                    sep=" ")
     
     #Get the simulation time (first column of the corresponding rows)
     time = np.array(data[1::N+2])[:, 0]
