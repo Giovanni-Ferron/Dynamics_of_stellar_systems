@@ -165,7 +165,7 @@ The main function of the script is get_halo_density_profile. It can read multipl
     For each halo given as input, generates all the 2D-3D profiles.
 
     This function reads the input halo and the particles belonging to it to derive all the binned radial profiles,
-    in three dimensions and for all the projections, using the [get_profile](#get_profile-(radius,-quantity,-profile_type,-velocity_dimensions,-bin_radius,-nbins,-rmin,-rmax)) function. Additionaly, $r_{500}$ and $r_{200}$ are computed using the [calculate_rDelta](#calculaterdelta-r-mass-delta-z-h0-om-ol) function. 
+    in three dimensions and for all the projections, using the [get_profile](#get_profile-radius-quantity-profile_type-velocity_dimensions-bin_radius-nbins-rmin-rmax) function. Additionaly, $r_{500}$ and $r_{200}$ are computed using the [calculate_rDelta](#calculaterdelta-r-mass-delta-z-h0-om-ol) function. 
 
     #### **Args:**
 
