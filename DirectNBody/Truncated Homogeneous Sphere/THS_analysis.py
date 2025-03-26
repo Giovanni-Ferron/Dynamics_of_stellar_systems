@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
 from pandas import read_csv
-import time as tm
+from tqdm import tqdm
+from scipy.integrate import quad
 
 #To view the animations type %matplotlib qt6 in the console
 
@@ -31,6 +32,14 @@ N = 800 #Number of particles
 M = 10 #Total mass in solar masses
 a = 1 #Total radius in AU
 m_i = M / N #Particle mass in solar masses
+equil = False #True if the generated distribution starts in equilibrium
+display_animation = True #True to display the distribution 3D animation
+
+#Relative path of the input file
+if equil == True:
+    path = "Equilibrium/THS_N" + str(N) + "_M" + str(M) + "_a" + str(a)
+else:
+    path = "THS_N" + str(N) + "_M" + str(M) + "_a" + str(a)
 
 #%%----GetData function----
 
@@ -46,13 +55,23 @@ def GetData(filename, N):
     time = np.array(data[1::N+2])[:, 0]
 
     #Remove the rows corresponding to N and time (which are padded with NaNs)
-    data = data.dropna().reset_index()
+    data = data.dropna().reset_index(drop=True)
     
     #Get the particle coordinates and velocities in the external frame
     #Rows are the evolution in time of a given particle, columns are the particle
     #number, and the third dimension are its coordinates/velocities
     pos_ext = np.array([data[["x", "y", "z"]][i::N] for i in range(N)]).transpose(1, 0, 2)
     vel_ext = np.array([data[["vx", "vy", "vz"]][i::N] for i in range(N)]).transpose(1, 0, 2)
+    
+    #Add the initial particles and velocities at the beginning
+    data_0 = read_csv("Input/" + path + ".in", 
+                    names=["m", "x", "y", "z", "vx", "vy", "vz"], 
+                    sep=" ")
+
+    time = np.insert(time, 0, 0)
+    data_0 = data_0.dropna().reset_index(drop=True)
+    pos_ext = np.concatenate((np.array(data_0[["x", "y", "z"]])[None, :, :], pos_ext))
+    vel_ext = np.concatenate((np.array(data_0[["vx", "vy", "vz"]])[None, :, :], vel_ext))
     
     #Compute CM position ad velocity
     m = data["m"][0]
@@ -69,11 +88,12 @@ def GetData(filename, N):
     
     return time, m, pos_ext, vel_ext, pos_CM, vel_CM, CM_p, CM_v
 
+
 #%%----Read output file----
 
 #Get the simulation time and the positions and velocities of the particles
 
-sim_file = "Output/THS_N" + str(N) + "_M" + str(M) + "_a" + str(a) + ".out"
+sim_file = "Output/" + path + ".out"
 
 time, m_i, pos_ext, vel_ext, pos_CM, vel_CM, CM_p, CM_v = GetData(sim_file, N)
 
@@ -84,8 +104,8 @@ time_yr = time / t_iu_yr
 x_ext, y_ext, z_ext = pos_ext[:, :, 0], pos_ext[:, :, 1], pos_ext[:, :, 2]
 vx_ext, vy_ext, vz_ext = vel_ext[:, :, 0], vel_ext[:, :, 1], vel_ext[:, :, 2]
 
-R = np.sqrt(np.sum(pos_ext**2, axis=2))
-V = np.sqrt(np.sum(vel_ext**2, axis=2))
+R_ext = np.sqrt(np.sum(pos_ext**2, axis=2))
+V_ext = np.sqrt(np.sum(vel_ext**2, axis=2))
             
 #Positions and velocities of the particles in the CM frame
 x_CM, y_CM, z_CM = pos_CM[:, :, 0], pos_CM[:, :, 1], pos_CM[:, :, 2]
@@ -123,23 +143,42 @@ plt.xlabel("$t\ [yr]$")
 plt.ylabel("$E\ [erg]$")
 plt.legend()
 
+
 #%%----Compute total linear and angular momentum in the external frame----
 
-p_tot = m_i * M_sun * np.sqrt(np.sum(vx_ext, axis=1)**2 + 
+p_tot_ext = m_i * M_sun * np.sqrt(np.sum(vx_ext, axis=1)**2 + 
                               np.sum(vy_ext, axis=1)**2 + 
                               np.sum(vz_ext, axis=1)**2) / v_iu_cgs
-L_tot = m_i * M_sun * AU * v_iu_cgs**-1 * np.sqrt(np.sum(y_ext * vy_ext - z_ext * vz_ext, axis=1)**2 + 
-                                  np.sum(z_ext * vz_ext - x_ext * vx_ext, axis=1)**2 + 
-                                  np.sum(x_ext * vx_ext - y_ext * vy_ext, axis=1)**2)
+L_tot_ext = m_i * M_sun * AU * v_iu_cgs**-1 * np.sqrt(np.sum(y_ext * vz_ext - z_ext * vy_ext, axis=1)**2 + 
+                                  np.sum(z_ext * vx_ext - x_ext * vz_ext, axis=1)**2 + 
+                                  np.sum(x_ext * vy_ext - y_ext * vx_ext, axis=1)**2)
 
-fig_p, ax_p = plt.subplots(1, 2, figsize=(10, 5))
-ax_p[0].plot(time_yr, p_tot, color="darkcyan")
-ax_p[0].set_xlabel("$t\ [yr]$")
-ax_p[0].set_ylabel("$p\ [g\cdot cm\cdot s^{-1}]$")
+p_tot_CM = m_i * M_sun * np.sqrt(np.sum(vx_CM, axis=1)**2 + 
+                              np.sum(vy_CM, axis=1)**2 + 
+                              np.sum(vz_CM, axis=1)**2) / v_iu_cgs
+L_tot_CM = m_i * M_sun * AU * v_iu_cgs**-1 * np.sqrt(np.sum(y_CM * vz_CM - z_CM * vy_CM, axis=1)**2 + 
+                                  np.sum(z_CM * vx_CM - x_CM * vz_CM, axis=1)**2 + 
+                                  np.sum(x_CM * vy_CM - y_CM * vx_CM, axis=1)**2)
 
-ax_p[1].plot(time_yr, L_tot, color="darkcyan")
-ax_p[1].set_xlabel("$t\ [yr]$")
-ax_p[1].set_ylabel("$L\ [g\cdot cm^{2}\cdot s^{-1}]$")
+fig_p, ax_p = plt.subplots(2, 2, figsize=(10, 10))
+
+ax_p[0, 0].plot(time_yr, p_tot_ext, color="darkcyan")
+ax_p[0, 0].set_ylabel("$p_{ext}\ [g\cdot cm\cdot s^{-1}]$")
+ax_p[0, 0].set_ylim(0.9*np.min(p_tot_ext), 1.1*np.max(p_tot_ext))
+
+ax_p[0, 1].plot(time_yr, L_tot_ext, color="darkcyan")
+ax_p[0, 1].set_ylabel("$L_{ext}\ [g\cdot cm^{2}\cdot s^{-1}]$")
+ax_p[0, 1].set_ylim(0.9*np.min(L_tot_ext), 1.1*np.max(L_tot_ext))
+
+ax_p[1, 0].plot(time_yr, p_tot_CM, color="darkcyan")
+ax_p[1, 0].set_ylabel("$p_{CM}\ [g\cdot cm\cdot s^{-1}]$")
+ax_p[1, 0].set_ylim(0.9*np.min(p_tot_CM), 1.1*np.max(p_tot_CM))
+
+ax_p[1, 1].plot(time_yr, L_tot_CM, color="darkcyan")
+ax_p[1, 1].set_ylabel("$L_{CM}\ [g\cdot cm^{2}\cdot s^{-1}]$")
+ax_p[1, 1].set_ylim(0.9*np.min(L_tot_CM), 1.1*np.max(L_tot_CM))
+
+fig_p.supxlabel("$t\ [yr]$", y=0.06)
 
 #%%----Compute theoretical timescales----
 
@@ -177,71 +216,54 @@ print("Collapse time from minimum U_tot =" + f"{t_coll_en / t_iu_yr: .3f}" + " y
 
 #%%----Collapse animation----
 
-fig = plt.figure(figsize=(10, 10))
-ax = fig.add_subplot(projection="3d")
-ax.set_aspect("equal")
 
-ticks = np.linspace(-2, 2., 5)
-bbox = dict(boxstyle='round', fc='white', ec='black', alpha=0.5)
-
-def update_collapse(frame):
-    ax.clear()
+if display_animation:
+    fig = plt.figure(figsize=(10, 10))
+    ax = fig.add_subplot(projection="3d")
+    ax.set_aspect("equal")
     
-    ax.set_autoscale_on(False)
-    ax.scatter(x_CM[frame], y_CM[frame], z_CM[frame], color="darkcyan")
-    ax.scatter(CM_x[frame], CM_y[frame], CM_z[frame], color="crimson")
-    ax.set_xticks(ticks)
-    ax.set_yticks(ticks)
-    ax.set_zticks(ticks)
-    ax.set_xlabel("x [AU]", size=10)
-    ax.set_ylabel("y [AU]", size=10)
-    ax.set_zlabel("z [AU]", size=10)
-    ax.text(0.875, 0.04, 0., s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox, color="black", size=10, transform=ax.transAxes)
+    ticks = np.linspace(-2, 2., 5)  
+    bbox = dict(boxstyle='round', fc='white', ec='black', alpha=0.5)
     
-end = np.where(time == max(time))[0][0]
-animation = anim.FuncAnimation(fig=fig, 
-                               func=update_collapse, 
-                               frames=end, 
-                               interval=20, repeat=True)
+    def update_anim(frame):
+        ax.clear()
+        
+        ax.set_autoscale_on(False)
+        ax.scatter(x_CM[frame], y_CM[frame], z_CM[frame], color="darkcyan")
+        ax.scatter(CM_x[frame], CM_y[frame], CM_z[frame], color="crimson")
+        ax.set_xticks(ticks)
+        ax.set_yticks(ticks)
+        ax.set_zticks(ticks)
+        ax.set_xlabel("x [AU]", size=10)
+        ax.set_ylabel("y [AU]", size=10)
+        ax.set_zlabel("z [AU]", size=10)
+        ax.text(0.875, 0.04, 0., s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox, color="black", size=10, transform=ax.transAxes)
+        
+    end = np.where(time == max(time))[0][0]
+    animation = anim.FuncAnimation(fig=fig, 
+                                   func=update_anim, 
+                                   frames=end, 
+                                   interval=20, repeat=True)
 
 #%%----Phase space and position histogram----
 
-#Phase space visualization and particle position histogram
-
-fig_ph = plt.figure(figsize=(15, 5))
+fig_ph = plt.figure()
 
 #Phase space plot
-
-ax_ph = fig_ph.add_subplot(121)    
-
-ticks_x_ph = np.linspace(-1, 5, 10)
-ticks_y_ph = np.linspace(-1, 1.2 * int(np.max(V_CM)), 5)
+ax_ph = fig_ph.add_subplot()    
 bbox_ph = dict(boxstyle='round', fc='white', ec='black', alpha=0.8)
-
-#Position histogram plot
-
-ax_hist = fig_ph.add_subplot(122)
-
-ticks_x_hist = np.linspace(-1, 0.8 * int(np.max(R_CM)), 10)
-ticks_y_hist = np.linspace(0, N/1.5, 5)
 
 def update_ph(frame):
     ax_ph.clear()
     
-    ax_ph.scatter(R_CM[frame, :], V_CM[frame, :], color="darkcyan", alpha=0.5)
-    ax_ph.scatter(CM_R[frame], CM_V[frame], color="crimson")
-    ax_ph.set_xticks(ticks_x_ph)
-    ax_ph.set_yticks(ticks_y_ph)
+    #Show only particles that start close to the center
+    close_particles = R_CM[frame, :] < a
+    
+    ax_ph.hist2d(R_CM[frame, close_particles], V_CM[frame, close_particles], bins=int(np.sqrt(np.sum(close_particles))))
     ax_ph.set_xlabel("R [AU]", size=10)
     ax_ph.set_ylabel("V [IU]", size=10)   
-    ax_ph.text(0.7, 0.03, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_ph, color="black", size=10, transform=ax_ph.transAxes)
-    
-    ax_hist.clear()
-    
-    ax_hist.hist(R_CM[frame, :], color="darkcyan")
-    ax_hist.set_xticks(ticks_x_hist)
-    ax_hist.set_yticks(ticks_y_hist)
-    ax_hist.set_xlabel("R [AU]", size=10)
+    ax_ph.set_ylim(top=np.max(V_CM[0, close_particles]))
+    ax_ph.text(0.79, 0.92, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_ph, color="black", size=10, transform=ax_ph.transAxes)
     
     
 end_ph = np.where(time == max(time))[0][0]
@@ -250,20 +272,72 @@ animation_ph = anim.FuncAnimation(fig=fig_ph,
                                frames=end_ph, 
                                interval=60, repeat=True)
 
+
+#%%----Orbits of particles----
+
+#Choose random particles
+# np.random.seed(5)
+
+choice_size = 10
+choice_idx =  np.random.choice(np.arange(0, N - 1), replace=False, size=choice_size)
+
+#Phi coordinate of the particle
+phi_orbit = np.arctan(y_CM[:, choice_idx] / x_CM[:, choice_idx])
+
+#Plot the chosen particles radius over time
+fig_coord, ax_coord = plt.subplots(1, 2, figsize=(10, 5))
+
+for i in choice_idx:
+    ax_coord[0].plot(time_yr, R_CM[:, i])
+    ax_coord[1].plot(time_yr, phi_orbit[:])
+    
+fig_coord.supxlabel("$t\ [yr]$")
+ax_coord[0].set_ylabel("$R\ [AU]$")
+ax_coord[1].set_ylabel("$\phi\ [rad]$")
+
+#Plot the chosen particles orbits in 3D
+
+fig_o = plt.figure(figsize=(10, 10))
+ax_o = fig_o.add_subplot(projection="3d")
+
+for i in choice_idx:
+    ax_o.plot(x_CM[:, i], y_CM[:, i], z_CM[:, i])
+    
+ax_o.set_xlabel("$x\ [AU]$")
+ax_o.set_ylabel("$y\ [AU]$")
+ax_o.set_zlabel("$z\ [AU]$")
+
 #%%----Plot the distribution density over time----
 
-#Divide the sphere in volume elements, all with the same total volume
-r_grid_len = 500
-volume = 4/3 * np.pi * a**3 / r_grid_len
+#Function to divide the distribution in intervals
+def DivideDistribution(edge, r_grid_len, equal_volume=False):   
+    if equal_volume:
+        #Divide the sphere in volume elements, all with the same total volume
+        volume = 4/3 * np.pi * edge**3 / r_grid_len
 
-#Compute the radii of each volume element to form a grid of radii, adding a last
-r_grid = np.zeros(r_grid_len)
+        #Compute the radii of each volume element to form a grid of radii, up to an edge
+        r_grid = np.zeros(r_grid_len)
 
-for i in range(r_grid_len - 1):
-    r_grid[i + 1] = (3/4 / np.pi * volume + r_grid[i]**3)**(1/3)
-    
-if r_grid[-1] < a:
-    r_grid = np.append(r_grid, a)
+        for i in range(r_grid_len - 1):
+            r_grid[i + 1] = (3/4 / np.pi * volume + r_grid[i]**3)**(1/3)
+            
+        if r_grid[-1] < edge:
+            r_grid = np.append(r_grid, edge)
+            
+    else:
+        #Divide the sphere in volume elements, with constant radius intervals
+        r_grid = np.linspace(0, edge, r_grid_len)
+            
+        if r_grid[-1] < edge:
+            r_grid = np.append(r_grid, edge)
+            
+        volume = 4/3 * np.pi * np.array([r_grid[i + 1]**3 - r_grid[i]**3 for i in range(len(r_grid) - 1)])
+
+    return r_grid, volume
+
+
+#Divide the distribution in radius intervals
+r_grid, volume = DivideDistribution(a, 100, False)
 
 #Compute the number of particles inside a given radius interval    
 p_num = np.zeros((len(time), len(r_grid) - 1))
@@ -284,6 +358,10 @@ rho_err = (np.sqrt(p_num) / volume) * m_i * M_sun * AU**-3
 
 #%%%Density profile animation
 
+#Theoretical density profile
+r_range = np.linspace(np.min(R_CM), 3 * a, len(r_grid))
+rho_th = lambda r: 3 * M / (4 * np.pi* a**3) * (1 + r**2/a**2)**(-5/2) * M_sun * AU**-3
+
 #Plot the density at each radius corresponding to the middle of a bin
 bar_pos = np.diff(r_grid) / 2 + r_grid[:-1]
 
@@ -293,18 +371,105 @@ bbox_rho = dict(boxstyle='round', fc='white', ec='black', alpha=0.4)
 def update_rho(frame):
     ax_rho.clear()
     
-    ax_rho.plot(bar_pos, rho[frame, :], color="darkcyan", label="Density profile")
-    ax_rho.axhline(density_0, color="crimson", label="Analytical density profile $\\rho_0$")
+    ax_rho.plot(bar_pos, rho[frame, :], color="darkcyan", label="Simulation density profile")
+    ax_rho.axhline(density_0, color="crimson", label="Analytical density profile")
+    ax_rho.axvline(a, alpha=0.6, color="grey", linestyle="--", label="$r = a$")
     ax_rho.fill_between(bar_pos, 
                       rho[frame, :] - rho_err[frame, :], 
                       rho[frame, :] + rho_err[frame, :], alpha=0.3, color="darkcyan", label="$1\sigma$ Poisson error")
-    plt.xlabel("$R\ [AU]$")
-    plt.ylabel("$\\rho\ [g\ cm^{-3}]$")
-    plt.legend(loc="upper right")
-    ax_rho.text(0.81, 0.72, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_rho, color="black", size=10, transform=ax_rho.transAxes)
+    ax_rho.set_xlabel("$R\ [AU]$")
+    ax_rho.set_ylabel("$\\rho\ [g\ cm^{-3}]$")
+    # ax_rho.set_ylim(0, 1.2 * 3 * M / (4 * np.pi* a**3) * M_sun * AU**-3)
+    ax_rho.legend(loc="upper center")
+    ax_rho.text(0.8, 0.9, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_rho, color="black", size=10, transform=ax_rho.transAxes)
     
 end_rho = np.where(time == max(time))[0][0]
 animation_rho = anim.FuncAnimation(fig=fig_rho, 
                                func=update_rho, 
                                frames=end_rho, 
+                               interval=120, repeat=True)
+
+#%%----Plot the potential profile over time----
+
+#Compute the potential on a r_grid on the equatorial plane (phi = theta = 0)
+#For spherical symmetry this is the same potential for every other phi and theta
+V = np.zeros((len(time), len(r_grid)))
+
+for t in range(len(time)):
+    for r in range(len(r_grid)):
+        V[t, r] = -G_p * m_i * M_sun * AU**-1 * np.sum(np.sqrt((x_CM[t, :] - r_grid[r])**2 + 
+                                                    y_CM[t, :]**2 + z_CM[t, :]**2)**-1)
+        
+#%%%Potential profile animation
+
+#Theoretical potential profile
+V_th = lambda r: -G_p * M * M_sun * AU**-1 * r**-1
+
+fig_V, ax_V = plt.subplots()
+bbox_V = dict(boxstyle='round', fc='white', ec='black', alpha=0.4)
+
+def update_V(frame):
+    ax_V.clear()
+    
+    ax_V.plot(r_grid, V[frame, :], color="darkcyan", label="Simulation potential profile")
+    ax_V.plot(r_range, V_th(r_range), color="crimson", label="Analytical potential profile")
+    ax_V.axvline(a, alpha=0.6, color="grey", linestyle="--", label="$r = b$")
+    ax_V.set_xlabel("$R\ [AU]$")
+    ax_V.set_ylabel("$\Phi (R) \ [cm^2 \cdot s^{-2}]$")
+    ax_V.legend(loc="lower right")
+    ax_V.text(0.8, 0.23, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_V, color="black", size=10, transform=ax_V.transAxes)
+    
+end_V = np.where(time == max(time))[0][0]
+animation_V = anim.FuncAnimation(fig=fig_V, 
+                               func=update_V, 
+                               frames=end_V, 
+                               interval=120, repeat=True)
+
+#%%----Compute the distribution function----
+
+#Energy of the single particles
+K_i = 0.5 * m_i * V_CM**2 * M_sun * v_iu_cgs**-2
+U_i = np.zeros((len(time), N))
+
+dpos = pos_CM.copy()
+
+for t in range(len(time)):
+    for i in range(N):   
+        # idx = np.concatenate((np.arange(0, i), np.arange(i + 1, N)))
+        
+        for j in range(3):
+            dpos[t, :i, j] -= dpos[t, i, j]
+            dpos[t, i+1:, j] -= dpos[t, i, j]
+            
+        U_i[t, :i] += -G_p * (m_i * M_sun)**2 * AU**-1 * np.sqrt(dpos[t, :i, 0]**2 +
+                                                          dpos[t, :i, 1]**2 +
+                                                          dpos[t, :i, 2]**2)**-1
+        U_i[t, i+1:] += -G_p * (m_i * M_sun)**2 * AU**-1 * np.sqrt(dpos[t, i+1:, 0]**2 +
+                                                          dpos[t, i+1:, 1]**2 +
+                                                          dpos[t, i+1:, 2]**2)**-1
+        
+        for j in range(3):
+            dpos[t, :i, j] += dpos[t, i, j]
+            dpos[t, i+1:, j] += dpos[t, i, j]
+
+E_i = K_i + U_i
+
+#%%%Plot the distribution function
+
+fig_f, ax_f = plt.subplots()
+bbox_f = dict(boxstyle='round', fc='white', ec='black', alpha=0.4)
+
+def update_f(frame):
+    ax_f.clear()
+    
+    ax_f.hist(-E_i[frame, :], bins="fd", color="darkcyan", density=True, label="Energy per particle distribution")    
+    ax_f.set_xlabel("$-E\ [erg]$")
+    ax_f.set_ylabel("$f(E)\ [cm^{-3}]$")
+    ax_f.legend(loc="upper left")
+    ax_f.text(0.03, 0.79, s="t =" + f"{time_yr[frame]: .3f}" + " yr", bbox=bbox_f, color="black", size=10, transform=ax_f.transAxes)
+    
+end_f = np.where(time == max(time))[0][0]
+animation_f = anim.FuncAnimation(fig=fig_f, 
+                               func=update_f, 
+                               frames=end_f, 
                                interval=120, repeat=True)

@@ -1,7 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.animation as anim
-import matplotlib.ticker as ticker
 from pandas import read_csv
 
 #Conversion in IU
