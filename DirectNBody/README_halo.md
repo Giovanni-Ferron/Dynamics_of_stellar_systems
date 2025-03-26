@@ -125,29 +125,29 @@ The main function of the script is get_halo_density_profile. It can read multipl
     #### **Returns:**
 
     - *\[tuple\]*: Depending on the profile type, returns different results. 
-        - For *'density'* and *'density2d'* profiles:
-            1. **mass_weighted_radii:** *\[array\]*
+        1. For *'density'* and *'density2d'* profiles:
+            - **mass_weighted_radii:** *\[array\]*
             
                 Total radius \* quantity in every bin.
 
-            2. **densities_binned:** *\[array\]* 
+            - **densities_binned:** *\[array\]* 
                 
                 Calculated average density in each spherical shell.
 
-            3. **masses_binned:** *\[array\]*
+            - **masses_binned:** *\[array\]*
                 
                 Total mass in each bin.
 
-            4. **mass_cum:** *\[array\]*
+            - **mass_cum:** *\[array\]*
 
                 Cumulative sum of the total binned masses.
 
-        - For *'velocity'*, *'velocity disp'* and *'velocity+disp'* profiles:
-            1. **bin_centres:** *\[array\]*
+        2. For *'velocity'*, *'velocity disp'* and *'velocity+disp'* profiles:
+            - **bin_centres:** *\[array\]*
                 
                 Centres of the bin edges in log-scale.
 
-            2. **binned_dimensions:** *\[dict\]*: 
+            - **binned_dimensions:** *\[dict\]*: 
                 
                 Dictionary containing the calculated binned radii and velocities for the dimensions entered.
 
@@ -240,63 +240,63 @@ The main function of the script is get_halo_density_profile. It can read multipl
     #### **Returns:** 
 
     - *\[tuple\]*: All binned quantities.
-        1. **rbins:** *\[array-like\], shape = (nbins, 4)* 
+        - **rbins:** *\[array-like\], shape = (nbins, 4)* 
 
             Multi-dimensional array of floats, in units of $r_{500}$, containing the binned 3D radius, and the three projected radii R2Dx,y,z at indexes (0,1,2,3),  respectively.
 
-        2. **MassDensity:** *\[array-like\], shape = (nbins, 6)*:  
+        - **MassDensity:** *\[array-like\], shape = (nbins, 6)*:  
         
             Multi-dimensional array that contains density, mass of the shell, cumulative mass, and the same for the number of particles, at indexes (0,1,2,3,4,5), respectively.
 
-        3. **MassDensity2Dx:** *\[array-like\], shape = (nbins, 6)*
+        - **MassDensity2Dx:** *\[array-like\], shape = (nbins, 6)*
 
             Multi-dimensional array that contains density, mass of the shell, cumulative mass, projected along the x direction, and the same for the x-projected number of particles, at indexes (0,1,2,3,4,5) respectively.
 
-        4. **MassDensity2Dy:** *\[array-like\], shape = (nbins, 6)* 
+        - **MassDensity2Dy:** *\[array-like\], shape = (nbins, 6)* 
             
            Same as MassDensity2Dx but for the y projection. 
 
-        5. **MassDensity2Dz:** *\[array-like\], shape = (nbins, 6)* 
+        - **MassDensity2Dz:** *\[array-like\], shape = (nbins, 6)* 
             
            Same as MassDensity2Dx but for the z projection.
 
-        6. **Vel3D:** *\[array-like\], shape = (nbins, 6)*  
+        - **Vel3D:** *\[array-like\], shape = (nbins, 6)*  
         
             Multi-dimensional array that contains all 3D-binned, Cartesian and spherical velocity components, (vx, vy, vz, vr, vt, vph). 
 
-        7. **VelDisp3D:** *\[array-like\], shape = (nbins, 6)*
+        - **VelDisp3D:** *\[array-like\], shape = (nbins, 6)*
         
             Multi-dimensional array that contains all 3D-binned, Cartesian and spherical velocity dispersion components, ($\sigma_{vx}, \sigma_{vy}, \sigma_{vz}, \sigma_{vr}, \sigma_{vt}, \sigma_{vph}$).   
 
-        8. **Vel2Dx:** *\[array-like\], shape = (nbins, 6)* 
+        - **Vel2Dx:** *\[array-like\], shape = (nbins, 6)* 
             
             Multi-dimensional array that contains all 2D-binned, Cartesian and spherical velocity components, projected along the x direction, (vx(R_x), vy(R_x), vz(R_x), vr(R_x), vt(R_x), vph(R_x)). 
 
-        9. **Vel2Dy:** *\[array-like\], shape = (nbins, 6)*
+        - **Vel2Dy:** *\[array-like\], shape = (nbins, 6)*
         
             Same as Vel2Dx but for the y projection. 
 
-        10. **Vel2Dz:** *\[array-like\], shape = (nbins, 6)*
+        - **Vel2Dz:** *\[array-like\], shape = (nbins, 6)*
         
             Same as Vel2Dx but for the z projection. 
 
-        11. **VelDisp2Dx** *\[array-like\], shape = (nbins, 6)* 
+        - **VelDisp2Dx** *\[array-like\], shape = (nbins, 6)* 
         
             Multi-dimensional array that contains all 2D-binned velocity dispersion components, projected along x direction, ($\sigma_{vx}, \sigma_{vy}, \sigma_{vz}, \sigma_{vr}, \sigma_{vt}, \sigma_{vph}$).
 
-        12. **VelDisp2Dy:**  *\[array-like\], shape = (nbins, 6)*
+        - **VelDisp2Dy:**  *\[array-like\], shape = (nbins, 6)*
 
             Same as VelDisp2Dx but for the y projection. 
 
-        13. **VelDisp2Dz:**  *\[array-like\], shape = (nbins, 6)*
+        - **VelDisp2Dz:**  *\[array-like\], shape = (nbins, 6)*
 
             Same as VelDisp2Dx but for the z projection. 
 
-        14. **r200:** *\[float\]* 
+        - **r200:** *\[float\]* 
 
             Estimated value of $r_{200}$.   
 
-        15. **r500:** *\[float\]* 
+        - **r500:** *\[float\]* 
 
             Estimated value of $r_{500}$.       
 &nbsp;
